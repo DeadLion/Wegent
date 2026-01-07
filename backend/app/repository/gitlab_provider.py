@@ -10,6 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import requests
+import urllib3
 from fastapi import HTTPException
 from shared.utils.url_util import build_url
 
@@ -18,6 +19,9 @@ from app.core.config import settings
 from app.models.user import User
 from app.repository.interfaces.repository_provider import RepositoryProvider
 from app.schemas.github import Branch, Repository
+
+# Suppress InsecureRequestWarning for local GitLab instances using HTTP
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class GitLabProvider(RepositoryProvider):
@@ -117,12 +121,17 @@ class GitLabProvider(RepositoryProvider):
         Raises:
             requests.exceptions.RequestException: If both authentication methods fail
         """
+        # Disable SSL verification for HTTP URLs (local GitLab instances)
+        verify_ssl = url.startswith("https://")
+        if not verify_ssl:
+            self.logger.info(f"SSL verification disabled for HTTP URL: {url}")
+
         # Try Bearer token first (for OAuth tokens)
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
         try:
             response = requests.request(
-                method, url, headers=headers, params=params, **kwargs
+                method, url, headers=headers, params=params, verify=verify_ssl, **kwargs
             )
             if response.status_code != 401:
                 response.raise_for_status()
@@ -138,7 +147,7 @@ class GitLabProvider(RepositoryProvider):
         headers = {"Private-Token": token, "Accept": "application/json"}
 
         response = requests.request(
-            method, url, headers=headers, params=params, **kwargs
+            method, url, headers=headers, params=params, verify=verify_ssl, **kwargs
         )
         response.raise_for_status()
         return response
@@ -163,12 +172,17 @@ class GitLabProvider(RepositoryProvider):
         Raises:
             requests.exceptions.RequestException: If both authentication methods fail
         """
+        # Disable SSL verification for HTTP URLs (local GitLab instances)
+        verify_ssl = url.startswith("https://")
+        if not verify_ssl:
+            self.logger.info(f"SSL verification disabled for HTTP URL: {url}")
+
         # Try Bearer token first (for OAuth tokens)
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
         try:
             response = await asyncio.to_thread(
-                requests.request, method, url, headers=headers, params=params, **kwargs
+                requests.request, method, url, headers=headers, params=params, verify=verify_ssl, **kwargs
             )
             if response.status_code != 401:
                 response.raise_for_status()
@@ -184,7 +198,7 @@ class GitLabProvider(RepositoryProvider):
         headers = {"Private-Token": token, "Accept": "application/json"}
 
         response = await asyncio.to_thread(
-            requests.request, method, url, headers=headers, params=params, **kwargs
+            requests.request, method, url, headers=headers, params=params, verify=verify_ssl, **kwargs
         )
         response.raise_for_status()
         return response

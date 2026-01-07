@@ -13,6 +13,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 import requests
+import urllib3
 from fastapi import HTTPException
 from requests.auth import HTTPDigestAuth
 from shared.utils.sensitive_data_masker import mask_string
@@ -23,6 +24,9 @@ from app.core.config import settings
 from app.models.user import User
 from app.repository.interfaces.repository_provider import RepositoryProvider
 from app.schemas.github import Branch, Repository
+
+# Suppress InsecureRequestWarning for local Gerrit instances using HTTP
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class GerritProvider(RepositoryProvider):
@@ -152,6 +156,11 @@ class GerritProvider(RepositoryProvider):
         Raises:
             requests.exceptions.RequestException: If request fails
         """
+        # Disable SSL verification for HTTP URLs (local Gerrit instances)
+        verify_ssl = url.startswith("https://")
+        if not verify_ssl:
+            self.logger.info(f"SSL verification disabled for HTTP URL: {url}")
+
         # Use HTTP Digest Authentication (Gerrit default)
         auth = HTTPDigestAuth(username, http_password)
 
@@ -164,6 +173,7 @@ class GerritProvider(RepositoryProvider):
             headers=headers,
             params=params,
             json=json_data,
+            verify=verify_ssl,
             **kwargs,
         )
         response.raise_for_status()
@@ -194,6 +204,11 @@ class GerritProvider(RepositoryProvider):
         Returns:
             Response object
         """
+        # Disable SSL verification for HTTP URLs (local Gerrit instances)
+        verify_ssl = url.startswith("https://")
+        if not verify_ssl:
+            self.logger.info(f"SSL verification disabled for HTTP URL: {url}")
+
         # Use HTTP Digest Authentication (Gerrit default)
         auth = HTTPDigestAuth(username, http_password)
 
@@ -207,6 +222,7 @@ class GerritProvider(RepositoryProvider):
             headers=headers,
             params=params,
             json=json_data,
+            verify=verify_ssl,
             **kwargs,
         )
         response.raise_for_status()
