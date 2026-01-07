@@ -78,6 +78,10 @@ class Settings(BaseSettings):
     REPO_CACHE_EXPIRED_TIME: int = 7200  # 2 hour in seconds
     REPO_UPDATE_INTERVAL_SECONDS: int = 3600  # 1 hour in seconds
 
+    # GitLab SSL verification configuration
+    # Set to False for self-hosted GitLab instances with self-signed certificates
+    GITLAB_SSL_VERIFY: bool = True
+
     # Task limits
     MAX_RUNNING_TASKS_PER_USER: int = 10
 

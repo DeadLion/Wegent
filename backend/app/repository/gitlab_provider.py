@@ -7,6 +7,7 @@ GitLab repository provider implementation
 """
 import asyncio
 import logging
+import urllib3
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -19,6 +20,10 @@ from app.models.user import User
 from app.repository.interfaces.repository_provider import RepositoryProvider
 from app.schemas.github import Branch, Repository
 
+# Disable SSL warnings if verification is disabled
+if getattr(settings, 'GITLAB_SSL_VERIFY', True) is False:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 class GitLabProvider(RepositoryProvider):
     """
@@ -30,6 +35,8 @@ class GitLabProvider(RepositoryProvider):
         self.api_base_url = "https://gitlab.com/api/v4"
         self.domain = "gitlab.com"
         self.type = "gitlab"
+        # SSL verification can be disabled for self-hosted GitLab with invalid certificates
+        self.ssl_verify = getattr(settings, 'GITLAB_SSL_VERIFY', True)
 
     def _get_git_infos(
         self, user: User, git_domain: Optional[str] = None
@@ -117,6 +124,10 @@ class GitLabProvider(RepositoryProvider):
         Raises:
             requests.exceptions.RequestException: If both authentication methods fail
         """
+        # Add SSL verification to kwargs
+        if 'verify' not in kwargs:
+            kwargs['verify'] = self.ssl_verify
+
         # Try Bearer token first (for OAuth tokens)
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
@@ -163,6 +174,10 @@ class GitLabProvider(RepositoryProvider):
         Raises:
             requests.exceptions.RequestException: If both authentication methods fail
         """
+        # Add SSL verification to kwargs
+        if 'verify' not in kwargs:
+            kwargs['verify'] = self.ssl_verify
+
         # Try Bearer token first (for OAuth tokens)
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
@@ -897,6 +912,15 @@ class GitLabProvider(RepositoryProvider):
             user_data = user_response.json()
             user_id = user_data.get("id")
             username = user_data.get("username", "")
+        except requests.exceptions.SSLError as e:
+            self.logger.error(f"SSL error connecting to GitLab at {git_domain}: {str(e)}")
+            return {
+                "has_access": False,
+                "access_level": 0,
+                "access_level_name": "No Access",
+                "username": "",
+                "error": f"SSL certificate verification failed. If you are using a self-hosted GitLab with a self-signed certificate, set GITLAB_SSL_VERIFY=False in your .env file. Original error: {str(e)}",
+            }
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Failed to get user info: {str(e)}")
             if hasattr(e, "response") and e.response and e.response.status_code == 401:
@@ -907,7 +931,13 @@ class GitLabProvider(RepositoryProvider):
                     "username": "",
                     "error": "Invalid token",
                 }
-            raise HTTPException(status_code=502, detail=f"GitLab API error: {str(e)}")
+            return {
+                "has_access": False,
+                "access_level": 0,
+                "access_level_name": "No Access",
+                "username": "",
+                "error": f"Connection error: {str(e)}",
+            }
 
         # Check project member access
         encoded_project_id = (
@@ -947,4 +977,10 @@ class GitLabProvider(RepositoryProvider):
                     "username": username,
                 }
             self.logger.error(f"Failed to check project access: {str(e)}")
-            raise HTTPException(status_code=502, detail=f"GitLab API error: {str(e)}")
+            return {
+                "has_access": False,
+                "access_level": 0,
+                "access_level_name": "No Access",
+                "username": username,
+                "error": f"Failed to check project access: {str(e)}",
+            }
