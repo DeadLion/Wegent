@@ -120,6 +120,11 @@ export async function sendMessage(params: {
     return { error: 'Please select Team', newTask: null }
   }
 
+  // Ensure team is provided (should be caught by above check, but being defensive)
+  if (!team) {
+    return { error: 'Please select Team', newTask: null }
+  }
+
   // For code type tasks, repository is required
   if (taskType === 'code' && !repo) {
     return { error: 'Please select a repository for code tasks', newTask: null }
@@ -130,7 +135,7 @@ export async function sendMessage(params: {
     task_id: Number.isFinite(task_id as number) ? (task_id as number) : undefined,
     message: trimmed,
     title: title || trimmed.substring(0, 100),
-    team_id: team?.id ?? 0,
+    team_id: team.id,
     git_url: repo?.git_url ?? '',
     git_repo: repo?.git_repo ?? '',
     git_repo_id: repo?.git_repo_id ?? 0,

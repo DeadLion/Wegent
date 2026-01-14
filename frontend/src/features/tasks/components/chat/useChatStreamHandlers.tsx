@@ -370,6 +370,16 @@ export function useChatStreamHandlers({
         return
       }
 
+      // Validate team is selected
+      if (!selectedTeam) {
+        toast({
+          variant: 'destructive',
+          title: t('chat:errors.no_team_selected'),
+        })
+        setIsLoading(false)
+        return
+      }
+
       // For code type tasks, repository is required
       const effectiveRepo =
         selectedRepo ||
@@ -490,7 +500,7 @@ export function useChatStreamHandlers({
         const tempTaskId = await contextSendMessage(
           {
             message: finalMessage,
-            team_id: selectedTeam?.id ?? 0,
+            team_id: selectedTeam!.id, // Validated above, guaranteed to be non-null
             task_id: selectedTaskDetail?.id,
             model_id: modelId,
             force_override_bot_model: forceOverride,
